@@ -10,6 +10,8 @@ from functools import wraps
 # modules are on the import path.
 from congress.tasks import utils, govinfo, bills, votes, vote_info
 
+logger = logging.getLogger("congress.patch")
+
 session = boto3.Session(profile_name="Democrasee")
 client = session.client("s3")
 transport_params = {"client": client}
@@ -32,7 +34,7 @@ def open_wrapper(original_open):
         if uri_as_string.startswith("raw"):
             s3_url = f"s3://{bucket}/{uri_as_string}"
 
-            # logging.warn(f"opening: {s3_url}")
+            logger.info(f"opening: {s3_url}")
 
             file = smart_open.open(
                 uri=s3_url, mode=mode, transport_params=transport_params
@@ -52,7 +54,7 @@ def etree_parse_wrapper(original_etree_parse):
         uri_as_string = str(source)
 
         if uri_as_string.startswith("raw"):
-            # logging.warn(f"opening xml file: {uri_as_string}")
+            logger.info(f"opening xml file: {uri_as_string}")
 
             file = _open(uri_as_string)
 
@@ -81,7 +83,7 @@ def listdir_wrapper(original_listdir):
 
                     dirs = []
 
-                    # logging.warn(f"listing dirs: {prefix}")
+                    logger.info(f"listing dirs: {prefix}")
 
                     for page in pages:
                         page_dirs = list(
@@ -99,8 +101,8 @@ def listdir_wrapper(original_listdir):
 
             return original_listdir(path)
         except ClientError as e:
-            logging.warn(e)
-            logging.warn(str(path))
+            logger.error(e)
+            logger.error(str(path))
             return False
 
     return _listdir
@@ -116,7 +118,7 @@ def exists_wrapper(original_exists):
 
             if uri_as_string.startswith("raw"):
                 if extension == "":
-                    # logging.warn(f"exists: {uri_as_string}")
+                    logger.info(f"exists: {uri_as_string}")
                     return True
 
                 try:
@@ -124,12 +126,12 @@ def exists_wrapper(original_exists):
                     
                     return True
                 except Exception as e:
-                    # logging.warn(f"file does not exist: {uri_as_string}")
+                    logger.error(f"file does not exist: {uri_as_string}")
                     return False
 
             return original_exists(path)
         except ClientError as e:
-            logging.warn(e)
+            logger.error(e)
             return False
 
     return _exists
@@ -153,7 +155,7 @@ def mkdir_p_wrapper(original_mkdir_p):
 
 def patch(task_name):
     try:
-        logging.info(f"Patching task {task_name}")
+        logger.info(f"Patching task {task_name}")
 
         utils.data_dir = data_dir_wrapper
         utils.cache_dir = cache_dir_wrapper
@@ -188,6 +190,6 @@ def patch(task_name):
         
         __builtins__["open"] = open_wrapper(open)
         
-        logging.info(f"Patched task {task_name}")
+        logger.info(f"Patched task {task_name}")
     except Exception as e:
         print(e)
